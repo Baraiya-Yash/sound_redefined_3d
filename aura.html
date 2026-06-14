@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>AURA Pro X — Sound Redefined</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100;300;700;900&family=Inter:wght@300;400&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+
+:root{
+  --blue:#0066ff;
+  --purple:#8800ff;
+  --magenta:#ff0088;
+  --cyan:#00ffdd;
+  --font-display:'Outfit','Arial Black',sans-serif;
+  --font-body:'Inter',-apple-system,sans-serif;
+}
+
+html{scroll-behavior:smooth}
+
+body{
+  background:#000;
+  color:#fff;
+  font-family:var(--font-body);
+  overflow-x:hidden;
+}
+
+/* ── Canvas ── */
+#webgl{
+  position:fixed;
+  inset:0;
+  width:100vw;
+  height:100vh;
+  z-index:1;
+  display:block;
+}
+
+/* ── Atmospheric layers ── */
+.vignette{
+  position:fixed;
+  inset:0;
+  background:radial-gradient(ellipse 80% 75% at 50% 50%,
+    transparent 25%,rgba(0,0,0,0.55) 100%);
+  z-index:2;
+  pointer-events:none;
+}
+
+.scanlines{
+  position:fixed;
+  inset:0;
+  z-index:3;
+  pointer-events:none;
+  background:repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255,255,255,0.008) 2px,
+    rgba(255,255,255,0.008) 4px
+  );
+}
+
+/* ── Loading screen ── */
+#loader{
+  position:fixed;
+  inset:0;
+  z-index:1000;
+  background:#000;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:1.5rem;
+  transition:opacity 0.8s ease;
+}
+
+.loader-logo{
+  font-family:var(--font-display);
+  font-size:2rem;
+  font-weight:900;
+  letter-spacing:0.3em;
+  background:linear-gradient(90deg,#4af,#a4f,#f4a);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-clip:text;
+}
+
+.loader-bar{
+  width:120px;
+  height:1px;
+  background:rgba(255,255,255,0.1);
+  position:relative;
+  overflow:hidden;
+}
+
+.loader-bar::after{
+  content:'';
+  position:absolute;
+  top:0;left:0;
+  width:0;height:100%;
+  background:linear-gradient(90deg,var(--blue),var(--purple));
+  animation:barFill 1.2s ease forwards;
+}
+
+@keyframes barFill{
+  to{width:100%}
+}
+
+/* ── Navigation ── */
+nav{
+  position:fixed;
+  top:0;left:0;right:0;
+  z-index:200;
+  padding:2rem 3rem;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+.logo{
+  font-family:var(--font-display);
+  font-size:1.5rem;
+  font-weight:900;
+  letter-spacing:0.3em;
+  background:linear-gradient(90deg,#4af 0%,#a4f 50%,#f4a 100%);
+  background-size:200%;
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-clip:text;
+  animation:logoFlow 8s linear infinite;
+}
+
+@keyframes logoFlow{
+  0%{background-position:0% 50%}
+  50%{background-position:100% 50%}
+  100%{background-position:0% 50%}
+}
+
+.nav-links{
+  display:flex;
+  gap:2.5rem;
+  list-style:none;
+}
+
+.nav-links a{
+  font-size:0.72rem;
+  font-weight:300;
+  letter-spacing:0.18em;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.45);
+  text-decoration:none;
+  transition:color 0.3s;
+  position:relative;
+}
+
+.nav-links a::after{
+  content:'';
+  position:absolute;
+  bottom:-3px;left:0;
+  width:0;height:1px;
+  background:var(--blue);
+  transition:width 0.35s ease;
+}
+
+.nav-links a:hover{color:rgba(255,255,255,0.9)}
+.nav-links a:hover::after{width:100%}
+
+/* ── Scroll container ── */
+#scroll-container{
+  height:500vh;
+  position:relative;
+  pointer-events:none;
+}
+
+/* ── UI overlay ── */
+#ui{
+  position:fixed;
+  inset:0;
+  z-index:10;
+  pointer-events:none;
+}
+
+/* ── Section panels ── */
+.panel{
+  position:absolute;
+  inset:0;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  padding:0 8%;
+  opacity:0;
+  will-change:opacity;
+}
+
+.p-s1{align-items:flex-start}
+.p-s2{align-items:flex-end;text-align:right}
+.p-s3{align-items:center;justify-content:flex-end;padding-bottom:11%;text-align:center}
+.p-s4{align-items:center;text-align:center;pointer-events:none}
+
+/* ── Typography ── */
+.eyebrow{
+  font-size:0.62rem;
+  font-weight:400;
+  letter-spacing:0.42em;
+  text-transform:uppercase;
+  color:rgba(80,190,255,0.85);
+  margin-bottom:1.1rem;
+}
+
+.headline{
+  font-family:var(--font-display);
+  font-size:clamp(3.2rem,9vw,8.5rem);
+  font-weight:900;
+  line-height:0.88;
+  color:#fff;
+  letter-spacing:-0.03em;
+  margin-bottom:1.8rem;
+}
+
+.grad{
+  display:block;
+  background:linear-gradient(135deg,var(--blue),var(--purple),var(--magenta));
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-clip:text;
+}
+
+.subtext{
+  font-size:clamp(0.82rem,1.7vw,1rem);
+  font-weight:300;
+  color:rgba(255,255,255,0.38);
+  letter-spacing:0.04em;
+  line-height:1.8;
+  max-width:360px;
+}
+
+/* ── Stat block ── */
+.stat-num{
+  font-family:var(--font-display);
+  font-size:clamp(5.5rem,17vw,14rem);
+  font-weight:900;
+  line-height:0.88;
+  background:linear-gradient(135deg,var(--magenta),var(--purple));
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-clip:text;
+  letter-spacing:-0.04em;
+}
+
+.stat-label{
+  font-size:clamp(0.7rem,1.5vw,0.9rem);
+  font-weight:300;
+  letter-spacing:0.35em;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.35);
+  margin-top:0.4rem;
+  margin-bottom:1rem;
+}
+
+/* ── CTA Button ── */
+.cta-btn{
+  pointer-events:all;
+  display:inline-block;
+  margin-top:2.2rem;
+  padding:1rem 3.5rem;
+  background:transparent;
+  border:1px solid rgba(255,255,255,0.18);
+  color:#fff;
+  font-family:var(--font-body);
+  font-size:0.78rem;
+  font-weight:400;
+  letter-spacing:0.28em;
+  text-transform:uppercase;
+  cursor:pointer;
+  position:relative;
+  overflow:hidden;
+  transition:border-color 0.4s,box-shadow 0.4s;
+}
+
+.cta-btn::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  background:linear-gradient(90deg,rgba(0,102,255,0.22),rgba(136,0,255,0.22));
+  transform:translateX(-100%);
+  transition:transform 0.45s ease;
+}
+
+.cta-btn:hover{
+  border-color:rgba(100,150,255,0.55);
+  box-shadow:0 0 40px rgba(80,120,255,0.18),0 0 80px rgba(80,120,255,0.08);
+}
+
+.cta-btn:hover::before{transform:translateX(0)}
+
+.price-tag{
+  font-size:0.65rem;
+  letter-spacing:0.18em;
+  color:rgba(255,255,255,0.2);
+  margin-top:0.9rem;
+}
+
+/* ── Scroll hint ── */
+#scroll-hint{
+  position:fixed;
+  bottom:2.5rem;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:50;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:0.6rem;
+  opacity:1;
+  transition:opacity 0.5s;
+}
+
+.sh-line{
+  width:1px;
+  height:46px;
+  background:linear-gradient(to bottom,rgba(80,170,255,0.8),transparent);
+  animation:scrollPulse 2.2s ease-in-out infinite;
+  transform-origin:top center;
+}
+
+@keyframes scrollPulse{
+  0%,100%{transform:scaleY(1);opacity:0.5}
+  50%{transform:scaleY(0.55);opacity:1}
+}
+
+.sh-word{
+  font-size:0.58rem;
+  letter-spacing:0.35em;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.28);
+}
+
+/* ── Progress dots ── */
+#pdots{
+  position:fixed;
+  right:2rem;
+  top:50%;
+  transform:translateY(-50%);
+  z-index:100;
+  display:flex;
+  flex-direction:column;
+  gap:1rem;
+  align-items:center;
+}
+
+.pdot{
+  width:5px;height:5px;
+  border-radius:50%;
+  background:rgba(255,255,255,0.18);
+  cursor:pointer;
+  transition:all 0.4s ease;
+  position:relative;
+}
+
+.pdot::before{
+  content:'';
+  position:absolute;
+  inset:-5px;
+  border-radius:50%;
+  border:1px solid transparent;
+  transition:border-color 0.4s;
+}
+
+.pdot.active{
+  background:var(--blue);
+  box-shadow:0 0 14px var(--blue),0 0 28px rgba(0,102,255,0.25);
+  transform:scale(1.6);
+}
+
+.pdot.active::before{border-color:rgba(0,102,255,0.35)}
+
+/* ── Bottom accent ── */
+.b-bar{
+  position:fixed;
+  bottom:0;left:0;right:0;
+  height:1px;
+  background:linear-gradient(90deg,transparent,rgba(80,120,255,0.45),rgba(180,0,255,0.45),transparent);
+  z-index:50;
+}
+
+/* ── Responsive ── */
+@media(max-width:768px){
+  nav{padding:1.4rem 1.5rem}
+  .nav-links{display:none}
+  .panel{padding:0 6%}
+  .p-s2{align-items:flex-start;text-align:left}
+  .subtext{max-width:100%}
+  #pdots{right:1rem}
+}
+</style>
+</head>
+<body>
+
+<!-- 3D Canvas -->
+<canvas id="webgl"></canvas>
+
+<!-- Atmosphere -->
+<div class="vignette"></div>
+<div class="scanlines"></div>
+<div class="b-bar"></div>
+
+<!-- Loader -->
+<div id="loader">
+  <div class="loader-logo">AURA</div>
+  <div class="loader-bar"></div>
+</div>
+
+<!-- Navigation -->
+<nav>
+  <div class="logo">AURA</div>
+  <ul class="nav-links">
+    <li><a href="#">Sound</a></li>
+    <li><a href="#">Technology</a></li>
+    <li><a href="#">Design</a></li>
+    <li><a href="#">Shop</a></li>
+  </ul>
+</nav>
+
+<!-- Section UI -->
+<div id="ui">
+
+  <!-- S1: Hero -->
+  <div class="panel p-s1" id="sec1">
+    <div class="eyebrow">Introducing AURA Pro X</div>
+    <h1 class="headline">Sound<span class="grad">Redefined.</span></h1>
+    <p class="subtext">Where physics meets emotion. A new dimension of wireless audio, sculpted entirely from light.</p>
+  </div>
+
+  <!-- S2: Tech -->
+  <div class="panel p-s2" id="sec2">
+    <div class="eyebrow">Advanced Technology</div>
+    <div class="stat-num">99%</div>
+    <div class="stat-label">Active Noise Cancellation</div>
+    <p class="subtext" style="text-align:right">Dual-layer adaptive ANC eliminates the world so you can hear only what matters.</p>
+  </div>
+
+  <!-- S3: Soundwave -->
+  <div class="panel p-s3" id="sec3">
+    <div class="eyebrow">Spatial Audio Engine</div>
+    <h2 class="headline" style="font-size:clamp(2.8rem,7vw,6.5rem)">An Ocean<span class="grad">of Clarity.</span></h2>
+    <p class="subtext" style="max-width:480px">40&nbsp;Hz – 40&nbsp;kHz frequency response. Hear the frequencies others never knew existed.</p>
+  </div>
+
+  <!-- S4: CTA -->
+  <div class="panel p-s4" id="sec4">
+    <div class="eyebrow">Available Now — Limited Edition</div>
+    <h2 class="headline">Experience<span class="grad">the Future.</span></h2>
+    <p class="subtext">AURA Pro X. Handcrafted precision. Starting at $399.</p>
+    <button class="cta-btn">Order Now →</button>
+    <div class="price-tag">Free shipping &nbsp;·&nbsp; 30-day returns &nbsp;·&nbsp; Lifetime warranty</div>
+  </div>
+
+</div>
+
+<!-- Scroll hint -->
+<div id="scroll-hint">
+  <div class="sh-line"></div>
+  <div class="sh-word">Scroll</div>
+</div>
+
+<!-- Progress dots -->
+<div id="pdots">
+  <div class="pdot active" data-s="0"></div>
+  <div class="pdot" data-s="1"></div>
+  <div class="pdot" data-s="2"></div>
+  <div class="pdot" data-s="3"></div>
+</div>
+
+<!-- Scroll height driver -->
+<div id="scroll-container"></div>
+
+<script>
+(function(){
+'use strict';
+
+/* ═══════════════════════════════════════════
+   CONFIG
+═══════════════════════════════════════════ */
+var N      = 9000;
+var STARS  = 2500;
+var DPR    = Math.min(window.devicePixelRatio || 1, 2);
+var W      = window.innerWidth;
+var H      = window.innerHeight;
+
+/* ═══════════════════════════════════════════
+   RENDERER
+═══════════════════════════════════════════ */
+var canvas   = document.getElementById('webgl');
+var renderer = new THREE.WebGLRenderer({
+  canvas: canvas,
+  antialias: false,
+  powerPreference: 'high-performance',
+  alpha: false
+});
+renderer.setSize(W, H);
+renderer.setPixelRatio(DPR);
+renderer.setClearColor(0x000000, 1);
+
+var scene  = new THREE.Scene();
+var camera = new THREE.PerspectiveCamera(55, W / H, 0.01, 300);
+camera.position.set(0, 0, 6);
+
+/* ═══════════════════════════════════════════
+   CAMERA TARGET (driven by GSAP)
+═══════════════════════════════════════════ */
+var camT = { x:0, y:0, z:6, rx:0, ry:0 };
+
+/* Camera keyframes for each section transition */
+var CAM = [
+  { x:0,    y:0,   z:6.2, rx:0,     ry:0    },
+  { x:0.5,  y:0.3, z:5.1, rx:-0.06, ry:0.1  },
+  { x:0,    y:3.0, z:4.6, rx:-0.58, ry:0    },
+  { x:0,    y:0,   z:3.4, rx:0,     ry:0    }
+];
+
+/* ═══════════════════════════════════════════
+   MOUSE
+═══════════════════════════════════════════ */
+var mx = 0, my = 0, mxSmooth = 0, mySmooth = 0;
+
+window.addEventListener('mousemove', function(e){
+  mx = (e.clientX / W - 0.5) * 2;
+  my = -(e.clientY / H - 0.5) * 2;
+});
+
+window.addEventListener('touchmove', function(e){
+  var t = e.touches[0];
+  mx = (t.clientX / W - 0.5) * 2;
+  my = -(t.clientY / H - 0.5) * 2;
+}, {passive:true});
+
+/* ═══════════════════════════════════════════
+   SHAPE GENERATORS
+═══════════════════════════════════════════ */
+
+/* Golden-ratio fibonacci sphere — evenly distributed surface points */
+function genSphere(n, R){
+  R = R || 2.5;
+  var p = new Float32Array(n * 3);
+  var phi = Math.PI * (3 - Math.sqrt(5));
+  for(var i = 0; i < n; i++){
+    var y = 1 - (i / (n - 1)) * 2;
+    var r = Math.sqrt(Math.max(0, 1 - y * y));
+    var theta = phi * i;
+    var sc = R + (Math.random() - 0.5) * 0.4;
+    p[i*3]   = Math.cos(theta) * r * sc;
+    p[i*3+1] = y * sc;
+    p[i*3+2] = Math.sin(theta) * r * sc;
+  }
+  return p;
+}
+
+/* Two-strand double helix */
+function genHelix(n){
+  var p = new Float32Array(n * 3);
+  var turns = 6, h = 5.8, rad = 1.75;
+  for(var i = 0; i < n; i++){
+    var strand = i % 2;
+    var idx    = Math.floor(i / 2);
+    var total  = n / 2;
+    var t      = (idx / total) * Math.PI * 2 * turns;
+    var y      = (idx / total) * h - h / 2;
+    var off    = strand * Math.PI;
+    var r      = rad + (Math.random() - 0.5) * 0.12;
+    p[i*3]   = Math.cos(t + off) * r;
+    p[i*3+1] = y + (Math.random() - 0.5) * 0.04;
+    p[i*3+2] = Math.sin(t + off) * r;
+  }
+  return p;
+}
+
+/* Undulating terrain grid */
+function genTerrain(n){
+  var p = new Float32Array(n * 3);
+  var GW = Math.ceil(Math.sqrt(n * 1.8));
+  var GH = Math.ceil(n / GW);
+  var sx = 7.5, sz = 5.5;
+  for(var i = 0; i < n; i++){
+    var xi = i % GW;
+    var zi = Math.floor(i / GW);
+    var x  = (xi / GW - 0.5) * sx * 2;
+    var z  = (zi / GH - 0.5) * sz * 2;
+    var y  = Math.sin(x * 1.1) * Math.cos(z * 1.3) * 0.55
+           + Math.sin(x * 2.8 + 0.7) * 0.22
+           + Math.cos(z * 2.5 - 0.4) * 0.18;
+    p[i*3]   = x;
+    p[i*3+1] = y;
+    p[i*3+2] = z;
+  }
+  return p;
+}
+
+/* Spiral vortex collapsing to a central core */
+function genVortex(n){
+  var p = new Float32Array(n * 3);
+  for(var i = 0; i < n; i++){
+    var t   = i / n;
+    var ang = t * Math.PI * 48;
+    var rad = Math.pow(1 - t, 1.6) * 5.0;
+    p[i*3]   = Math.cos(ang) * rad + (Math.random() - 0.5) * 0.08;
+    p[i*3+1] = (Math.random() - 0.5) * 0.18 * (1 - t);
+    p[i*3+2] = Math.sin(ang) * rad + (Math.random() - 0.5) * 0.08;
+  }
+  return p;
+}
+
+/* Build all 4 shape buffers */
+var P0 = genSphere(N);
+var P1 = genHelix(N);
+var P2 = genTerrain(N);
+var P3 = genVortex(N);
+
+/* Per-particle random values */
+var aRand = new Float32Array(N);
+var aSizeR = new Float32Array(N);
+for(var i = 0; i < N; i++){
+  aRand[i]  = Math.random();
+  aSizeR[i] = Math.random();
+}
+
+/* ═══════════════════════════════════════════
+   GEOMETRY
+═══════════════════════════════════════════ */
+var geo = new THREE.BufferGeometry();
+geo.setAttribute('position', new THREE.BufferAttribute(P0.slice(), 3));
+geo.setAttribute('aPos0',    new THREE.BufferAttribute(P0,  3));
+geo.setAttribute('aPos1',    new THREE.BufferAttribute(P1,  3));
+geo.setAttribute('aPos2',    new THREE.BufferAttribute(P2,  3));
+geo.setAttribute('aPos3',    new THREE.BufferAttribute(P3,  3));
+geo.setAttribute('aRand',    new THREE.BufferAttribute(aRand,  1));
+geo.setAttribute('aSizeR',   new THREE.BufferAttribute(aSizeR, 1));
+
+/* ═══════════════════════════════════════════
+   SHADER — VERTEX
+═══════════════════════════════════════════ */
+var vertSrc = [
+  'attribute vec3  aPos0;',
+  'attribute vec3  aPos1;',
+  'attribute vec3  aPos2;',
+  'attribute vec3  aPos3;',
+  'attribute float aRand;',
+  'attribute float aSizeR;',
+
+  'uniform float uProg;',
+  'uniform float uTime;',
+  'uniform vec2  uMouse;',
+  'uniform float uMStr;',
+  'uniform float uDPR;',
+
+  'varying float vRand;',
+  'varying vec3  vCol;',
+  'varying float vAlpha;',
+
+  /* Smooth morph between consecutive shape pairs */
+  'vec3 morphed(){',
+  '  float p=clamp(uProg,0.0,3.0);',
+  '  float t;vec3 a,b;',
+  '  if(p<1.0){t=smoothstep(0.0,1.0,p);      a=aPos0;b=aPos1;}',
+  '  else if(p<2.0){t=smoothstep(0.0,1.0,p-1.0);a=aPos1;b=aPos2;}',
+  '  else{t=smoothstep(0.0,1.0,p-2.0);         a=aPos2;b=aPos3;}',
+  '  return mix(a,b,t);',
+  '}',
+
+  'void main(){',
+  '  vec3 C0=vec3(0.02,0.45,1.00);',   /* electric blue  */
+  '  vec3 C1=vec3(0.55,0.02,1.00);',   /* vivid purple   */
+  '  vec3 C2=vec3(1.00,0.02,0.55);',   /* hot magenta    */
+  '  vec3 C3=vec3(0.00,0.95,0.85);',   /* luminous cyan  */
+
+  '  vec3 pos=morphed();',
+  '  float p=clamp(uProg,0.0,3.0);',
+  '  float t=uTime;',
+
+  /* Organic micro-turbulence */
+  '  pos.x+=sin(pos.y*3.1+t*0.70+aRand*6.28)*0.028;',
+  '  pos.y+=cos(pos.x*2.7+t*0.50)*0.026;',
+  '  pos.z+=sin(pos.z*2.4+t*0.62+aRand*3.14)*0.022;',
+
+  /* Terrain ripple (section 3) */
+  '  float tF=smoothstep(1.8,2.2,p)*(1.0-smoothstep(2.85,3.0,p));',
+  '  pos.y+=sin(pos.x*2.2+t*1.9)*cos(pos.z*2.6+t*1.4)*0.38*tF;',
+
+  /* Differential vortex rotation (section 4) */
+  '  float vF=smoothstep(2.6,3.0,p);',
+  '  float r=length(pos.xz)+0.4;',
+  '  float ang=t*(2.8/r)*vF;',
+  '  float ca=cos(ang),sa=sin(ang);',
+  '  float nx=pos.x*ca-pos.z*sa;',
+  '  float nz=pos.x*sa+pos.z*ca;',
+  '  pos.x=mix(pos.x,nx,vF);',
+  '  pos.z=mix(pos.z,nz,vF);',
+
+  /* Mouse push/warp */
+  '  vec2 mDir=pos.xz-uMouse*3.6;',
+  '  float mD=length(mDir)+0.5;',
+  '  vec2 push=normalize(mDir)*uMStr*0.28/(mD*mD);',
+  '  pos.x+=push.x;',
+  '  pos.z+=push.y;',
+
+  /* Color interpolation across sections */
+  '  vec3 col;',
+  '  if(p<1.0)      col=mix(C0,C1,smoothstep(0.0,1.0,p));',
+  '  else if(p<2.0) col=mix(C1,C2,smoothstep(0.0,1.0,p-1.0));',
+  '  else           col=mix(C2,C3,smoothstep(0.0,1.0,p-2.0));',
+
+  /* Height tint */
+  '  col+=vec3(0.0,0.04,0.1)*clamp(pos.y*0.28,-1.0,1.0);',
+
+  /* Vortex core brightening */
+  '  float cg=vF*max(0.0,1.0-length(pos.xz)*0.5);',
+  '  col+=cg*1.6;',
+
+  '  vCol=col;',
+  '  vRand=aRand;',
+  '  vAlpha=0.62+aRand*0.38;',
+
+  /* Perspective point size */
+  '  vec4 mv=modelViewMatrix*vec4(pos,1.0);',
+  '  float sz=(2.2+aSizeR*3.2)*uDPR*(5.8/-mv.z);',
+  '  gl_PointSize=clamp(sz,0.5,16.0);',
+  '  gl_Position=projectionMatrix*mv;',
+  '}'
+].join('\n');
+
+/* ═══════════════════════════════════════════
+   SHADER — FRAGMENT
+═══════════════════════════════════════════ */
+var fragSrc = [
+  'varying float vRand;',
+  'varying vec3  vCol;',
+  'varying float vAlpha;',
+
+  'void main(){',
+  '  vec2  uv  =gl_PointCoord*2.0-1.0;',
+  '  float d   =length(uv);',
+  '  if(d>1.0)discard;',
+
+  /* Soft core + broad halo */
+  '  float core=1.0-smoothstep(0.0,0.42,d);',
+  '  float halo=1.0-smoothstep(0.32,1.0,d);',
+  '  float a=(core*0.88+halo*0.28)*vAlpha;',
+
+  /* Over-expose core → additive bloom where particles overlap */
+  '  vec3 col=vCol+vCol*core*2.0;',
+
+  '  gl_FragColor=vec4(col,a);',
+  '}'
+].join('\n');
+
+/* ═══════════════════════════════════════════
+   UNIFORMS & MATERIAL
+═══════════════════════════════════════════ */
+var uniforms = {
+  uProg:  { value: 0.0 },
+  uTime:  { value: 0.0 },
+  uMouse: { value: new THREE.Vector2(0, 0) },
+  uMStr:  { value: 0.4 },
+  uDPR:   { value: DPR }
+};
+
+var mat = new THREE.ShaderMaterial({
+  vertexShader:   vertSrc,
+  fragmentShader: fragSrc,
+  uniforms:       uniforms,
+  transparent:    true,
+  depthWrite:     false,
+  blending:       THREE.AdditiveBlending
+});
+
+var particles = new THREE.Points(geo, mat);
+particles.frustumCulled = false;
+scene.add(particles);
+
+/* ═══════════════════════════════════════════
+   STARFIELD
+═══════════════════════════════════════════ */
+(function(){
+  var sg = new THREE.BufferGeometry();
+  var sp = new Float32Array(STARS * 3);
+  for(var i = 0; i < STARS; i++){
+    var r  = 28 + Math.random() * 45;
+    var th = Math.random() * Math.PI * 2;
+    var ph = Math.acos(2 * Math.random() - 1);
+    sp[i*3]   = r * Math.sin(ph) * Math.cos(th);
+    sp[i*3+1] = r * Math.sin(ph) * Math.sin(th);
+    sp[i*3+2] = r * Math.cos(ph);
+  }
+  sg.setAttribute('position', new THREE.BufferAttribute(sp, 3));
+  var sm = new THREE.PointsMaterial({
+    color: 0xffffff,
+    size: 0.055,
+    sizeAttenuation: true,
+    transparent: true,
+    opacity: 0.5,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+  scene.add(new THREE.Points(sg, sm));
+})();
+
+/* ═══════════════════════════════════════════
+   HELPERS
+═══════════════════════════════════════════ */
+function clamp01(v){ return Math.min(1, Math.max(0, v)); }
+function lerp(a, b, t){ return a + (b - a) * t; }
+function smStep(v){ return v * v * (3 - 2 * v); }  /* smoothstep */
+
+/* ═══════════════════════════════════════════
+   GSAP SCROLL
+═══════════════════════════════════════════ */
+gsap.registerPlugin(ScrollTrigger);
+
+var scrollProg = 0;  /* 0 → 3 */
+
+ScrollTrigger.create({
+  trigger: '#scroll-container',
+  start:   'top top',
+  end:     'bottom bottom',
+  scrub:   1.2,
+  onUpdate: function(self){
+    scrollProg = self.progress * 3;
+    uniforms.uProg.value = scrollProg;
+
+    /* Active dot */
+    var sec = Math.min(3, Math.floor(scrollProg + 0.12));
+    document.querySelectorAll('.pdot').forEach(function(d, i){
+      d.classList.toggle('active', i === sec);
+    });
+
+    /* Camera position — interpolate between keyframes */
+    var idx = Math.min(2, Math.floor(scrollProg));
+    var t   = smStep(clamp01(scrollProg - idx));
+    var A   = CAM[idx], B = CAM[idx + 1];
+    camT.x  = lerp(A.x,  B.x,  t);
+    camT.y  = lerp(A.y,  B.y,  t);
+    camT.z  = lerp(A.z,  B.z,  t);
+    camT.rx = lerp(A.rx, B.rx, t);
+    camT.ry = lerp(A.ry, B.ry, t);
+
+    /* Section text fades */
+    var p = scrollProg;
+    var op = [
+      clamp01(p < 0.7 ? 1 : 1 - (p - 0.7) * 5),
+      clamp01((p - 0.8) * 5) * clamp01(p < 1.7 ? 1 : 1 - (p - 1.7) * 5),
+      clamp01((p - 1.8) * 5) * clamp01(p < 2.7 ? 1 : 1 - (p - 2.7) * 5),
+      clamp01((p - 2.72) * 5)
+    ];
+    ['#sec1','#sec2','#sec3','#sec4'].forEach(function(id, i){
+      gsap.set(id, { opacity: op[i] });
+    });
+
+    /* Mouse strength — ramps up in vortex section */
+    uniforms.uMStr.value = 0.3 + clamp01((p - 2.4) * 3.5) * 1.8;
+
+    /* Scroll hint */
+    gsap.set('#scroll-hint', { opacity: p > 0.05 ? 0 : 1 });
+  }
+});
+
+/* Dot click → scroll to section */
+document.querySelectorAll('.pdot').forEach(function(dot){
+  dot.addEventListener('click', function(){
+    var s = parseInt(dot.dataset.s, 10);
+    var max = document.documentElement.scrollHeight - window.innerHeight;
+    window.scrollTo({ top: (s / 3) * max, behavior: 'smooth' });
+  });
+});
+
+/* Show section 1 on load */
+gsap.set('#sec1', { opacity: 1 });
+
+/* ═══════════════════════════════════════════
+   LOADER DISMISS
+═══════════════════════════════════════════ */
+window.addEventListener('load', function(){
+  setTimeout(function(){
+    var loader = document.getElementById('loader');
+    loader.style.opacity = '0';
+    setTimeout(function(){ loader.style.display = 'none'; }, 800);
+  }, 1200);
+});
+
+/* ═══════════════════════════════════════════
+   RENDER LOOP
+═══════════════════════════════════════════ */
+var clock = new THREE.Clock();
+
+function tick(){
+  requestAnimationFrame(tick);
+
+  var elapsed = clock.getElapsedTime();
+  uniforms.uTime.value = elapsed;
+
+  /* Smooth mouse */
+  mxSmooth += (mx - mxSmooth) * 0.065;
+  mySmooth += (my - mySmooth) * 0.065;
+  uniforms.uMouse.value.set(mxSmooth, mySmooth);
+
+  /* Camera lerp to target + subtle mouse parallax */
+  var tx = camT.x + mxSmooth * 0.20;
+  var ty = camT.y + mySmooth * 0.13;
+  camera.position.x += (tx - camera.position.x) * 0.05;
+  camera.position.y += (ty - camera.position.y) * 0.05;
+  camera.position.z += (camT.z - camera.position.z) * 0.05;
+  camera.rotation.x += (camT.rx - camera.rotation.x) * 0.05;
+  camera.rotation.y += (camT.ry - camera.rotation.y) * 0.05;
+
+  /* Slow world rotation — fades out entering vortex */
+  var rotDamp = 1 - clamp01((scrollProg - 2.5) * 2.5);
+  particles.rotation.y = elapsed * 0.042 * rotDamp;
+
+  renderer.render(scene, camera);
+}
+
+tick();
+
+/* ═══════════════════════════════════════════
+   RESIZE
+═══════════════════════════════════════════ */
+window.addEventListener('resize', function(){
+  W = window.innerWidth;
+  H = window.innerHeight;
+  camera.aspect = W / H;
+  camera.updateProjectionMatrix();
+  renderer.setSize(W, H);
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  renderer.setPixelRatio(dpr);
+  uniforms.uDPR.value = dpr;
+});
+
+})();
+</script>
+</body>
+</html>
